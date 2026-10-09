@@ -1,0 +1,12 @@
+# Pinned from a verified install (2026-10-09) in a clean venv on Python 3.14.7, Windows.
+# MediaPipe 1.1.0 uses the Tasks API (HandLandmarker); src/landmarks.py targets it.
+mediapipe==1.1.0
+opencv-python==5.0.0.93
+opencv-contrib-python==5.0.0.93
+gradio==6.30.0
+scikit-learn==1.9.1
+numpy==2.5.3
+joblib==1.6.0
+pillow==12.3.0
+matplotlib==3.11.2
+pytest==9.1.1
