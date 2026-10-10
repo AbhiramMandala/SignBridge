@@ -15,7 +15,6 @@ import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -33,6 +32,28 @@ def split(X, y, seed=RANDOM_SEED):
     s2 = StratifiedShuffleSplit(n_splits=1, test_size=val_rel, random_state=seed + 1)
     tr, va = next(s2.split(X[tr_val], y[tr_val]))
     return tr_val[tr], tr_val[va], te
+
+
+N_AUGMENTED_COPIES = 2
+
+
+def assemble_training_matrix(X, y, i_tr, rng, copies=N_AUGMENTED_COPIES):
+    """Build the augmented train matrix: `copies` jittered copies per sample.
+
+    Rows are interleaved (sample_0 x copies, sample_1 x copies, ...) and every
+    augmented row carries the label of the sample it was generated from.
+    Returns (X_tr, y_tr) with len(X_tr) == len(y_tr) == len(i_tr) * (1 + copies).
+    """
+    base, base_y = X[i_tr], y[i_tr]
+    aug_rows, aug_labels = [], []
+    for v, lab in zip(base, base_y):
+        for _ in range(copies):
+            aug_rows.append(augment(v, rng))
+            aug_labels.append(lab)
+    X_tr = np.concatenate([base, np.array(aug_rows)])
+    y_tr = np.concatenate([base_y, np.array(aug_labels, dtype=y.dtype)])
+    assert len(X_tr) == len(y_tr) == len(i_tr) * (1 + copies)
+    return X_tr, y_tr
 
 
 def drop_rare_classes(X, y, labels, min_n=10):
@@ -63,14 +84,16 @@ def main() -> dict:
 
     i_tr, i_va, i_te = split(X, y)
     rng = np.random.default_rng(RANDOM_SEED)
-    # Augment TRAIN only (split happened before): 1 jittered copy per sample.
-    X_tr = np.concatenate([X[i_tr], np.array([augment(v, rng) for v in X[i_tr]])])
-    y_tr = np.concatenate([y[i_tr], y[i_tr]])
+    # Augment TRAIN only (split happened before).
+    # shortcut: random split leaks near-duplicate frames, so val/test stay
+    # optimistic; trust data/custom_test accuracy for real-world performance.
+    X_tr, y_tr = assemble_training_matrix(X, y, i_tr, rng)
 
     candidates = {
         "logreg": LogisticRegression(max_iter=2000, C=1.0, random_state=RANDOM_SEED),
-        "random_forest": RandomForestClassifier(n_estimators=200, random_state=RANDOM_SEED, n_jobs=-1),
-        "mlp": MLPClassifier(hidden_layer_sizes=(128,), max_iter=500, random_state=RANDOM_SEED),
+        "mlp": MLPClassifier(hidden_layer_sizes=(128,), max_iter=500, alpha=0.01,
+                             early_stopping=True, validation_fraction=0.1,
+                             n_iter_no_change=20, random_state=RANDOM_SEED),
     }
     val_scores, fitted = {}, {}
     for name, clf in candidates.items():

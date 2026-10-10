@@ -17,7 +17,8 @@ Primary dataset: **Kaggle "ASL Alphabet"** by grassknoted (Akash)
    with `chmod 600` (Linux/Mac). Never commit this file.
 3. `pip install kaggle`
 4. From `signbridge/`: `python scripts/download_data.py` (or `--limit 1000` for a subset).
-5. Expect `data/raw/<label>/*.jpg`. Then: `python -m src.dataset`.
+5. Expect `data/raw/<label>/*.jpg`. Then: `python -m src.dataset` (uses a seeded
+   sample of up to 1,000 images per class; re-running with the same files gives the same selection).
 
 ## No Kaggle access?
 Place your own images as `data/raw/<LETTER>/*.jpg` (any image size/format

@@ -14,7 +14,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.neural_network import MLPClassifier
 
 from src.features import FEATURE_DIM
-from src.train import drop_rare_classes, split
+from src.train import assemble_training_matrix, drop_rare_classes, split
 
 
 def _synth(n_per_class=40, n_classes=3, seed=0):
@@ -61,6 +61,25 @@ def test_drop_rare_classes_reindexes():
     y = np.array([0] * 20 + [1] * 5)  # 'B' too rare, 'C' absent
     X2, y2, labs = drop_rare_classes(X, y, ["A", "B", "C"], min_n=10)
     assert labs == ["A"] and len(X2) == 20 and set(np.unique(y2)) == {0}
+
+
+def test_augmented_labels_match_source_samples(monkeypatch):
+    """Label alignment: 2 interleaved copies per sample keep the source label.
+
+    Uses distinct labels and identity augmentation so any tile/block ordering
+    (e.g. np.tile) fails while the production interleave passes.
+    """
+    import src.train as T
+    monkeypatch.setattr(T, "augment", lambda v, rng: v.copy())
+    X = np.arange(4 * FEATURE_DIM, dtype=np.float32).reshape(4, FEATURE_DIM)
+    y = np.array([10, 20, 30, 40])
+    X_tr, y_tr = T.assemble_training_matrix(X, y, np.array([0, 1, 2, 3]),
+                                            np.random.default_rng(0), copies=2)
+    assert len(X_tr) == len(y_tr) == 12
+    assert y_tr.tolist() == [10, 20, 30, 40, 10, 10, 20, 20, 30, 30, 40, 40]
+    for k in range(4):  # each augmented row derives from the row its label says
+        np.testing.assert_array_equal(X_tr[4 + 2 * k], X[k])
+        np.testing.assert_array_equal(X_tr[4 + 2 * k + 1], X[k])
 
 
 def test_artifact_roundtrip_with_label_map(tmp_path):

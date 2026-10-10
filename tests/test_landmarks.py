@@ -28,3 +28,69 @@ def test_draw_runs_without_mediapipe():
     img = np.zeros((200, 200, 3), dtype=np.uint8)
     out = draw_landmarks_bgr(img, rng.random((21, 3)).astype(np.float32))
     assert out.shape == img.shape and out.sum() > 0
+
+
+def test_detector_uses_configured_confidence(monkeypatch):
+    from mediapipe.tasks.python import vision
+
+    import src.landmarks as L
+    from src.config import MIN_DETECTION_CONFIDENCE
+
+    captured = {}
+
+    def fake_create(opts):
+        captured["conf"] = opts.min_hand_detection_confidence
+
+        class Dummy:
+            def close(self):
+                pass
+
+        return Dummy()
+
+    monkeypatch.setattr(vision.HandLandmarker, "create_from_options", fake_create)
+    L._landmarker = None
+    try:
+        L.get_landmarker()
+        assert captured["conf"] == MIN_DETECTION_CONFIDENCE
+        monkeypatch.setattr(L, "MIN_DETECTION_CONFIDENCE", 0.3)
+        L.close()
+        L._landmarker = None
+        L.get_landmarker()
+        assert captured["conf"] == 0.3  # a config change reaches the detector
+    finally:
+        L.close()
+        L._landmarker = None
+
+
+def test_detector_calls_serialized(monkeypatch):
+    """Concurrent extracts never enter detect() together (mocked detector)."""
+    import threading
+    import time
+
+    import src.landmarks as L
+
+    active, peak = 0, 0
+    peak_lock = threading.Lock()
+
+    class FakeResult:
+        hand_landmarks = []
+
+    class FakeLandmarker:
+        def detect(self, image):
+            nonlocal active, peak
+            with peak_lock:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.02)
+            with peak_lock:
+                active -= 1
+            return FakeResult()
+
+    monkeypatch.setattr(L, "get_landmarker", lambda: FakeLandmarker())
+    img = np.zeros((200, 200, 3), dtype=np.uint8)
+    threads = [threading.Thread(target=lambda: L.extract_landmarks_bgr(img)) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert peak == 1

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.dataset import build
+from src.dataset import build, sample_files
 import src.dataset as D
 
 
@@ -26,3 +26,19 @@ def test_limit_per_class(tmp_path, monkeypatch):
     monkeypatch.setattr(D, "LANDMARKS_CACHE", tmp_path / "l.npz")
     monkeypatch.setattr(D, "SKIPPED_LOG", tmp_path / "s.json")
     assert build(limit_per_class=5) == {}
+
+
+def test_sample_files_capped_without_replacement_reproducible():
+    from pathlib import Path
+    files = [Path(f"img{i:04d}.jpg") for i in range(3000)]
+    a, b = sample_files(files, 1000), sample_files(files, 1000)
+    assert len(a) == 1000 and a == b and len(set(a)) == 1000
+    assert set(a) != set(files[:1000])  # a spread sample, not the first-N slice
+
+
+def test_sample_files_short_class_keeps_all():
+    from pathlib import Path
+    files = [Path(f"img{i}.jpg") for i in range(50)]
+    assert sample_files(files, 1000) == files
+    assert sample_files(files, None) == files
+    assert sample_files(files, 0) == files

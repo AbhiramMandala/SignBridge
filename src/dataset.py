@@ -13,11 +13,25 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .config import LANDMARKS_CACHE, MAX_PER_CLASS, RAW_DIR, SKIPPED_LOG
+from .config import LANDMARKS_CACHE, MAX_PER_CLASS, RANDOM_SEED, RAW_DIR, SKIPPED_LOG
 from .features import normalize
 from .landmarks import close, extract_landmarks_bgr
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def sample_files(files: list, limit_per_class: int | None, seed: int = RANDOM_SEED) -> list:
+    """Deterministic per-class cap: seeded sample without replacement.
+
+    Returns every file when the limit is None/0 or the class is smaller than
+    the limit. Same seed + same file list = same selection, every run.
+    """
+    files = list(files)
+    if not limit_per_class or len(files) <= limit_per_class:
+        return files
+    rng = np.random.default_rng(seed)
+    chosen = sorted(rng.choice(len(files), size=limit_per_class, replace=False))
+    return [files[i] for i in chosen]
 
 
 def build(limit_per_class: int | None = MAX_PER_CLASS) -> dict:
@@ -27,8 +41,7 @@ def build(limit_per_class: int | None = MAX_PER_CLASS) -> dict:
     for label_dir in sorted(p for p in RAW_DIR.iterdir() if p.is_dir()):
         label = label_dir.name
         files = sorted(f for f in label_dir.iterdir() if f.suffix.lower() in IMG_EXTS)
-        if limit_per_class:
-            files = files[:limit_per_class]
+        files = sample_files(files, limit_per_class)
         labels.append(label)
         idx = len(labels) - 1
         n_skip = 0

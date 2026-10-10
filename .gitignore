@@ -16,3 +16,5 @@ data/kaggle_test/
 models/hand_landmarker.task
 !models/.gitkeep
 .DS_Store
+kaggle.json
+archive.zip

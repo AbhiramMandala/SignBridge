@@ -21,3 +21,14 @@ def test_classify_none_image_message():
     import app as A
     out = A.classify(None)
     assert "first" in out[1].lower() or "upload" in out[1].lower()
+
+
+def test_clear_prediction_resets_state():
+    import app as A
+    assert A.clear_prediction() is None
+    assert A.add_letter("HI", A.clear_prediction()) == "HI"  # stale Add is a no-op
+
+
+def test_app_builds():
+    import app as A
+    assert A.build_app() is not None

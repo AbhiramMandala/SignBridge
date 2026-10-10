@@ -39,8 +39,16 @@ def add_letter(word: str, letter) -> str:
     return word + (" " if letter == "space" else letter)
 
 
+def clear_prediction():
+    """Reset stored prediction when the input image changes.
+
+    Without this, Add letter would append the previous image's letter.
+    """
+    return None
+
+
 def build_app():
-    with gr.Blocks(title="SignBridge — ASL Alphabet MVP", css=CSS) as app:
+    with gr.Blocks(title="SignBridge — ASL Alphabet MVP") as app:
         gr.Markdown("# SignBridge — ASL Alphabet MVP\nStatic letters A–Z (+ space/del/nothing).")
         with gr.Row():
             with gr.Column():
@@ -59,6 +67,7 @@ def build_app():
             back = gr.Button("Backspace")
             clear = gr.Button("Clear")
         btn.click(classify, [img, threshold], [out_img, out_letter, out_conf, out_top3, state])
+        img.change(clear_prediction, None, state)
         add.click(add_letter, [word, state], word)
         back.click(lambda w: w[:-1], word, word)
         clear.click(lambda: "", None, word)
@@ -68,4 +77,4 @@ def build_app():
 
 
 if __name__ == "__main__":
-    build_app().launch()
+    build_app().launch(css=CSS)
